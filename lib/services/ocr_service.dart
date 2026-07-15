@@ -1,25 +1,47 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:image/image.dart' as img;
 
-/// Google ML Kit kullanarak görsellerdeki metni tanıyan OCR servisi.
 class OcrService {
-  final TextRecognizer _recognizer = TextRecognizer(
-    script: TextRecognitionScript.latin,
-  );
+  static final OcrService _instance = OcrService._internal();
+  factory OcrService() => _instance;
+  OcrService._internal();
 
-  /// Verilen görsel dosya yolundaki metni OCR ile çıkarır.
-  /// Metin bulunamazsa boş string döner.
+  final TextRecognizer _textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
+
   Future<String> extractText(String imagePath) async {
     try {
-      final inputImage = InputImage.fromFilePath(imagePath);
-      final RecognizedText result = await _recognizer.processImage(inputImage);
-      return result.text;
+      final File imageFile = File(imagePath);
+      
+      // HIZLANDIRMA: Görseli optimize et (Küçültme)
+      final Uint8List bytes = await imageFile.readAsBytes();
+      img.Image? originalImage = img.decodeImage(bytes);
+      
+      if (originalImage == null) return '';
+
+      // Genişliği 600px yap (Okunabilirlik için yeterli, hız için muazzam)
+      img.Image resizedImage = img.copyResize(originalImage, width: 600);
+      
+      // Geçici dosyaya yaz (ML Kit dosya yolu beklediği için)
+      final tempDir = Directory.systemTemp;
+      final tempFile = File('${tempDir.path}/temp_ocr.jpg');
+      await tempFile.writeAsBytes(img.encodeJpg(resizedImage, quality: 80));
+
+      final inputImage = InputImage.fromFilePath(tempFile.path);
+      final RecognizedText recognizedText = await _textRecognizer.processImage(inputImage);
+      
+      // Geçici dosyayı sil (Bellek temizliği)
+      if (await tempFile.exists()) await tempFile.delete();
+
+      return recognizedText.text;
     } catch (e) {
+      print("OCR Hatası: $e");
       return '';
     }
   }
 
-  /// Kaynakları serbest bırakır. Uygulama kapanırken çağırın.
   void dispose() {
-    _recognizer.close();
+    _textRecognizer.close();
   }
 }
