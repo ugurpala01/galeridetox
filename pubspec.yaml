@@ -18,6 +18,8 @@ dependencies:
   # Galeri erişimi
   photo_manager: ^3.6.0
 
+  image: ^4.2.0  # Bunu ekle ve flutter pub get yap
+
   # İzin yönetimi
   permission_handler: ^11.3.1
 
